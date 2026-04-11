@@ -125,4 +125,4 @@ python main.py --schedule --notify
 
 ---
 
-**Developed by [Your Name]**
+**Developed by Primavat**
