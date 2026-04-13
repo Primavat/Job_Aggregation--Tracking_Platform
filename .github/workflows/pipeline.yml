@@ -1,28 +1,13 @@
-name: Job Pipeline Scheduler
+- name: Job Pipeline Scheduler
+  env:
+    AI_BACKEND: groq
+    AI_API_KEY: ${{ secrets.AI_API_KEY }}
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
-on:
-  schedule:
-    - cron: "0 */6 * * *"   # every 6 hours
-  workflow_dispatch:        # manual run button
+    GOOGLE_CREDENTIALS_FILE: credentials.json
+    GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME }}
+    GOOGLE_AUTH_METHOD: service_account
 
-jobs:
-  run-pipeline:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install -r backend/requirements.txt
-
-      - name: Run pipeline
-        env:
-          GOOGLE_AUTH_METHOD: service_account
-          # add all your env vars here
-        run: python main.py
+    TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+    TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  run: python main.py
