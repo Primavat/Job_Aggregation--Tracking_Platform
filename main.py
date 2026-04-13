@@ -111,14 +111,7 @@ def main():
     cfg = Config()
 
     if args.schedule:
-        logger.info(f"Scheduler mode: every {args.interval} hour(s)")
-        run_pipeline(cfg, args.filter, args.notify)          # immediate first run
-        schedule.every(args.interval).hours.do(
-            run_pipeline, cfg, args.filter, args.notify
-        )
-        while True:
-            schedule.run_pending()
-            time.sleep(60)
+        run_pipeline(cfg, args.filter, args.notify)
     else:
         run_pipeline(cfg, args.filter, args.notify)
 
