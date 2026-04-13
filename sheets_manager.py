@@ -81,13 +81,20 @@ class SheetsManager:
     def _connect(self):
         if self._gc:
             return
+
         method = os.getenv("GOOGLE_AUTH_METHOD", "service_account").lower()
         self._gc = self._connect_oauth() if method == "oauth" else self._connect_sa()
 
+        if self._gc is None:
+            logger.warning("Google Sheets not initialized")
+
     def _connect_sa(self):
         f = self.cfg.GOOGLE_CREDENTIALS_FILE
-        if not Path(f).exists():
-            raise FileNotFoundError(f"credentials.json not found at '{f}'.")
+
+        if not f or not Path(f).exists():
+            logger.warning("Google Sheets disabled: credentials file not found")
+            return None  # <-- prevent crash
+
         creds = Credentials.from_service_account_file(f, scopes=SCOPES)
         logger.info("  Google auth: service account")
         return gspread.authorize(creds)
@@ -212,6 +219,10 @@ class SheetsManager:
     # ── Upload ────────────────────────────────────────────────────────────────
 
     def upload(self, jobs: list[dict]) -> int:
+        self._connect()
+        if not self._gc:
+            logger.warning("Skipping Google Sheets upload (not configured)")
+            return 0;
         sh = self._get_or_create_sheet()
 
         # Ensure all tabs exist
