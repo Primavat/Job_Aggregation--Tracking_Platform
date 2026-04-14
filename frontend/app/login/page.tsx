@@ -7,26 +7,38 @@ import toast from 'react-hot-toast';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
 
   const handleLogin = async () => {
     if (!email) return toast.error('Please enter your email');
     setLoading(true);
+    setDebugInfo('');
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      setDebugInfo(`Connecting to: ${apiUrl}/api/auth/login`);
+
       const res = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      if (!res.ok) throw new Error('Login failed');
+
       const data = await res.json();
+
+      if (!res.ok) {
+        setDebugInfo(`Error: ${res.status} - ${data.detail || 'Unknown error'}`);
+        throw new Error(data.detail || 'Login failed');
+      }
+
       setAuth(data.token, data.user);
       toast.success('Logged in!');
       router.push('/jobs');
     } catch (err) {
-      toast.error('Login failed. Check your email.');
+      const errorMsg = err instanceof Error ? err.message : 'Login failed. Check your email.';
+      setDebugInfo(`${errorMsg}`);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -55,6 +67,11 @@ export default function LoginPage() {
           <p className="text-center text-gray-500 text-sm">
             Use: <span className="font-mono text-blue-600">test@example.com</span>
           </p>
+          {debugInfo && (
+            <div className="mt-4 p-3 bg-gray-100 rounded border border-gray-300">
+              <p className="text-sm text-gray-700 font-mono break-words">{debugInfo}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
