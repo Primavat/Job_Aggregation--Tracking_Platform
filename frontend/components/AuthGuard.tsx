@@ -1,33 +1,26 @@
 'use client'
 
-import { useEffect } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/store'
 
-export default function DashboardPage() {
+export default function AuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   const token = useAuthStore((state) => state.token)
   const hasHydrated = useAuthStore((state) => state._hasHydrated)
 
   useEffect(() => {
-    // 🚨 DO NOTHING until hydration completes
     if (!hasHydrated) return
 
-    // ✅ Now safely check auth
     if (!token) {
-      router.push('/')
+      router.replace('/login')
     }
   }, [token, hasHydrated, router])
 
-  // 🚨 Prevent UI flicker
+  // prevent flicker
   if (!hasHydrated) return null
-
   if (!token) return null
 
-  return (
-    <div>
-      Dashboard
-    </div>
-  )
+  return <>{children}</>
 }
