@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useAuthStore } from './store';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -9,9 +10,10 @@ export const apiClient = axios.create({
   },
 });
 
-// Add token to requests
+// Add token to requests - Get from Zustand store (handles hydration correctly)
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
+  const state = useAuthStore.getState();
+  const token = state.token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
