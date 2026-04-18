@@ -10,15 +10,36 @@ export const apiClient = axios.create({
   },
 });
 
-// Add token to requests - Get from Zustand store (handles hydration correctly)
+// ── Request Interceptor ───────────────────────────────────────────────
+// Reads token from Zustand store, falls back to localStorage during hydration
 apiClient.interceptors.request.use((config) => {
   const state = useAuthStore.getState();
-  const token = state.token;
+  const token =
+    state.token ||
+    (typeof window !== 'undefined'
+      ? localStorage.getItem('auth_token')
+      : null);
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+// ── Response Interceptor ──────────────────────────────────────────────
+// Handles expired/invalid tokens globally — clears auth and redirects to login
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      useAuthStore.getState().clearAuth();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // ── Job API ──────────────────────────────────────────────────────────
 export const jobsAPI = {

@@ -5,14 +5,30 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pipelineAPI, statsAPI } from '@/lib/api';
 import { formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '@/lib/store';
+import { useRouter } from 'next/navigation';
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+
+  // ── FIX 1: Read auth state + hydration flag ──────────────────────────────
+  const token = useAuthStore((state) => state.token);
+  const _hasHydrated = useAuthStore((state) => state._hasHydrated);
+
+  // ── FIX 2: Redirect to login if not authenticated (after hydration) ───────
+  React.useEffect(() => {
+    if (_hasHydrated && !token) {
+      router.replace('/login');
+    }
+  }, [_hasHydrated, token, router]);
 
   // ── Latest pipeline run — polls every 3 s while status is "running" ────────
+  // FIX 3: enabled flag — queries only fire when token is confirmed present
   const { data: latestRun } = useQuery({
     queryKey: ['latest-run'],
     queryFn: () => pipelineAPI.getStatus(),
+    enabled: _hasHydrated && !!token,          // ← KEY FIX: don't fire without token
     refetchInterval: (query) => {
       const status = query.state.data?.data?.status;
       return status === 'running' ? 3000 : false;
@@ -26,6 +42,7 @@ export default function Dashboard() {
   const { data: stats } = useQuery({
     queryKey: ['stats'],
     queryFn: () => statsAPI.getOverview(),
+    enabled: _hasHydrated && !!token,          // ← KEY FIX: same guard
   });
 
   // Detect pipeline run transitions and react accordingly
@@ -58,6 +75,21 @@ export default function Dashboard() {
   });
 
   const statsData = stats?.data?.overview;
+
+  // ── FIX 4: Show loader until Zustand has rehydrated from localStorage ─────
+  if (!_hasHydrated) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-500 text-sm">Loading your dashboard…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Render nothing while redirect happens (not authenticated) ─────────────
+  if (!token) return null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
