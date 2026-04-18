@@ -66,7 +66,7 @@ export const pipelineAPI = {
 
 // ── Stats API ────────────────────────────────────────────────────────
 export const statsAPI = {
-  getOverview: () => apiClient.get('/api/stats/overview'),
+  getOverview: () => apiClient.get('/api/stats'),
   getAnalytics: () => apiClient.get('/api/stats'),
   getByCategory: () => apiClient.get('/api/stats/by-category'),
   getBySource: () => apiClient.get('/api/stats/by-source'),

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import Optional, List, Tuple
 from backend.app.models.models import Job, Application, ApplicationStatus
-from backend.app.db.schemas import JobDetailResponse, ApplicationWithJobResponse, ApplicationResponse
+from backend.app.db.schemas import JobDetailResponse, ApplicationWithJobResponse, ApplicationResponse, JobResponse
 
 
 class JobService:
@@ -265,11 +265,14 @@ class ApplicationService:
         result = []
         for app in apps:
             job = self.db.query(Job).filter(Job.id == app.job_id).first()
-            app_with_job = ApplicationWithJobResponse(
-                **ApplicationResponse.model_validate(app).model_dump(),
-                job=job,
-            )
-            result.append(app_with_job)
+            if job:
+                app_response_dict = ApplicationResponse.model_validate(app).model_dump()
+                job_response = JobResponse.model_validate(job)
+                app_with_job = ApplicationWithJobResponse(
+                    **app_response_dict,
+                    job=job_response,
+                )
+                result.append(app_with_job)
 
         return result, total_count
 
