@@ -22,7 +22,7 @@ export default function SettingsPage() {
           <div className="text-center py-12">
             <p className="text-gray-600 text-lg">⚙️ Settings page coming soon!</p>
             <p className="text-gray-500 mt-2">
-              Here you'll be able to configure:
+              Here you will be able to configure:
             </p>
             <ul className="text-gray-600 mt-4 space-y-2">
               <li>✓ Pipeline scheduling</li>
