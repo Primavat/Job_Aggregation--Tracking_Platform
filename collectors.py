@@ -293,15 +293,6 @@ class JobCollector:
             "python developer India",
             "react developer India",
             "data scientist India",
-            "machine learning India",
-            "software intern India",
-            "fresher developer India",
-            "entry level software engineer India",
-            "devops engineer India",
-            "java developer India",
-            "backend developer Hyderabad",
-            "frontend developer Pune",
-            "full stack developer India",
         ]
 
         headers = {
@@ -361,7 +352,7 @@ class JobCollector:
                                            (j.get("job_required_skills") or [])[:8]
                                        ),
                     })
-                time.sleep(0.4)
+                time.sleep(3.0)
             except Exception as e:
                 logger.debug(f"JSearch '{query}': {e}")
 
