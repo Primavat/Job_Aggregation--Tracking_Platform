@@ -11,9 +11,10 @@ interface FilterPanelProps {
     jobType?: string | null,
     source?: string | null
   ) => void;
+  onReset?: () => void;
 }
 
-export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
+export default function FilterPanel({ onFilterChange, onReset }: FilterPanelProps) {
   // "pending" state — what the user is selecting
   const [category, setCategory] = React.useState<string | null>(null);
   const [location, setLocation] = React.useState<string | null>(null);

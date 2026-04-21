@@ -15,6 +15,11 @@ export default function JobsPage() {
     selectedJobType,
     selectedSource,
     setSearchQuery,
+    setCategory,
+    setLocation,
+    setJobType,
+    setSource,
+    reset,
   } = useFilterStore();
 
   return (
@@ -53,8 +58,12 @@ export default function JobsPage() {
         <div className="lg:col-span-1">
           <FilterPanel
             onFilterChange={(cat, loc, type, src) => {
-              // Filters are handled by the FilterPanel component using Zustand
+              setCategory(cat ?? null);
+              setLocation(loc ?? null);
+              setJobType(type ?? null);
+              setSource(src ?? null);
             }}
+            onReset={reset}
           />
         </div>
 
