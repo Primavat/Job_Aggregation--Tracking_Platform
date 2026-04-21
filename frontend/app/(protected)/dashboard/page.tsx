@@ -167,10 +167,10 @@ export default function Dashboard() {
         {latestRunData?.data ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div>
-              <p className="text-gray-500 text-sm">Last Started</p>
-              <p className="text-base font-semibold text-gray-900">
-                {formatDateTime(latestRunData.data.started_at)}
-              </p>
+            <p className="text-gray-500 text-sm">Last Run</p>
+            <p className="text-base font-semibold text-gray-900">
+              {formatDateTime(latestRunData.data.ended_at || latestRunData.data.started_at)}
+            </p>
             </div>
             <div>
               <p className="text-gray-500 text-sm">Jobs Collected</p>

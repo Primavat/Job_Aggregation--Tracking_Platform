@@ -15,13 +15,11 @@ interface FilterPanelProps {
 }
 
 export default function FilterPanel({ onFilterChange, onReset }: FilterPanelProps) {
-  // "pending" state — what the user is selecting
   const [category, setCategory] = React.useState<string | null>(null);
   const [location, setLocation] = React.useState<string | null>(null);
   const [jobType, setJobType] = React.useState<string | null>(null);
   const [source, setSource] = React.useState<string | null>(null);
 
-  // "applied" state — what is actually filtering the jobs
   const [appliedCategory, setAppliedCategory] = React.useState<string | null>(null);
   const [appliedLocation, setAppliedLocation] = React.useState<string | null>(null);
   const [appliedJobType, setAppliedJobType] = React.useState<string | null>(null);
@@ -44,14 +42,35 @@ export default function FilterPanel({ onFilterChange, onReset }: FilterPanelProp
 
   const jobTypes = ['Internship', 'Full-time', 'Part-time', 'Contract', 'Freelance'];
 
-  // Check if there are unapplied changes pending
+  const indiaLocations = [
+    'India',
+    'Remote (India)',
+    'Bangalore',
+    'Mumbai',
+    'Delhi',
+    'Hyderabad',
+    'Pune',
+    'Chennai',
+    'Kolkata',
+    'Ahmedabad',
+    'Noida',
+    'Gurgaon',
+  ];
+
+  const globalLocations = ['Remote', 'Remote (Global)'];
+
+  // Remaining locations from API excluding ones already in hardcoded groups
+  const hardcodedSet = new Set([...indiaLocations, ...globalLocations]);
+  const otherLocations = locations?.data?.filter(
+    (loc: string) => loc && !hardcodedSet.has(loc)
+  ) ?? [];
+
   const hasPendingChanges =
     category !== appliedCategory ||
     location !== appliedLocation ||
     jobType !== appliedJobType ||
     source !== appliedSource;
 
-  // Check if any filter is currently active
   const hasActiveFilters =
     appliedCategory || appliedLocation || appliedJobType || appliedSource;
 
@@ -73,6 +92,7 @@ export default function FilterPanel({ onFilterChange, onReset }: FilterPanelProp
     setAppliedJobType(null);
     setAppliedSource(null);
     onFilterChange(null, null, null, null);
+    onReset?.();
   };
 
   return (
@@ -116,11 +136,29 @@ export default function FilterPanel({ onFilterChange, onReset }: FilterPanelProp
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Locations</option>
-          {locations?.data?.slice(0, 20).map((loc: string) => (
-            <option key={loc} value={loc}>
-              {loc}
-            </option>
-          ))}
+          <optgroup label="🇮🇳 India">
+            {indiaLocations.map((loc) => (
+              <option key={loc} value={loc}>
+                {loc}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="🌍 Global / Remote">
+            {globalLocations.map((loc) => (
+              <option key={loc} value={loc}>
+                {loc}
+              </option>
+            ))}
+          </optgroup>
+          {otherLocations.length > 0 && (
+            <optgroup label="Other">
+              {otherLocations.slice(0, 30).map((loc: string) => (
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </div>
 
