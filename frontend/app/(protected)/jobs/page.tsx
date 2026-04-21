@@ -28,8 +28,8 @@ export default function JobsPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Browse Jobs</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Browse Jobs</h1>
+            <p className="text-gray-600 dark:text-white">
               Discover tech jobs from multiple sources, filtered with AI
             </p>
           </div>

@@ -54,8 +54,8 @@ export default function ApplicationsPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Application Tracker</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Application Tracker</h1>
+            <p className="text-gray-600 dark:text-white">
               Track all your saved and applied jobs in one place
             </p>
           </div>
