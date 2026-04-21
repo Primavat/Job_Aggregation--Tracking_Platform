@@ -100,6 +100,12 @@ No markdown fences. No explanation. Pure JSON array only."""
                        "apply_link","date_posted","source","tags","description")}
             for j in jobs
         ]
+
+        # Truncate descriptions to keep token count low
+        for job in payload:
+            if job.get("description"):
+                job["description"] = job["description"][:200]
+
         return system, json.dumps(payload, ensure_ascii=False)
 
     def _call_ai(self, jobs: list[dict]) -> list[dict]:
@@ -136,10 +142,10 @@ No markdown fences. No explanation. Pure JSON array only."""
         r = self.client.post(
             "https://api.groq.com/openai/v1/chat/completions",
             json={
-                "model":       self.cfg.AI_MODEL or "llama-3.3-70b-versatile",
+                "model":       self.cfg.AI_MODEL or "llama-3.1-8b-instant",
                 "messages":    [{"role": "system", "content": system},
                                 {"role": "user",   "content": user}],
-                "max_tokens":  4000,
+                "max_tokens":  2000,
                 "temperature": 0,
             },
             headers={"Authorization": f"Bearer {key}",
@@ -172,6 +178,10 @@ No markdown fences. No explanation. Pure JSON array only."""
             time.sleep(wait)
             return self._call_groq(system, user, retry + 1)
 
+        if r.status_code == 413:
+            logger.error(f"Groq error 413: request too large even after truncation — skipping chunk")
+            return "[]"
+
         if r.status_code != 200:
             logger.error(f"Groq error {r.status_code}: {r.text[:200]}")
             return "[]"
@@ -191,7 +201,7 @@ No markdown fences. No explanation. Pure JSON array only."""
             json={
                 "system_instruction": {"parts": [{"text": system}]},
                 "contents":           [{"parts": [{"text": user}]}],
-                "generationConfig":   {"temperature": 0, "maxOutputTokens": 4000},
+                "generationConfig":   {"temperature": 0, "maxOutputTokens": 2000},
             },
         )
         if r.status_code != 200:
@@ -206,7 +216,7 @@ No markdown fences. No explanation. Pure JSON array only."""
                 "model":      self.cfg.AI_MODEL or "meta-llama/llama-3.3-70b-instruct:free",
                 "messages":   [{"role": "system", "content": system},
                                {"role": "user",   "content": user}],
-                "max_tokens": 4000,
+                "max_tokens": 2000,
             },
             headers={"Authorization": f"Bearer {self.cfg.AI_API_KEY}",
                      "Content-Type":  "application/json"},
@@ -221,7 +231,7 @@ No markdown fences. No explanation. Pure JSON array only."""
             "https://api.anthropic.com/v1/messages",
             json={
                 "model":      self.cfg.AI_MODEL or "claude-sonnet-4-20250514",
-                "max_tokens": 4000,
+                "max_tokens": 2000,
                 "system":     system,
                 "messages":   [{"role": "user", "content": user}],
             },
