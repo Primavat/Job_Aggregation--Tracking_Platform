@@ -14,10 +14,17 @@ interface FilterPanelProps {
 }
 
 export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
+  // "pending" state — what the user is selecting
   const [category, setCategory] = React.useState<string | null>(null);
   const [location, setLocation] = React.useState<string | null>(null);
   const [jobType, setJobType] = React.useState<string | null>(null);
   const [source, setSource] = React.useState<string | null>(null);
+
+  // "applied" state — what is actually filtering the jobs
+  const [appliedCategory, setAppliedCategory] = React.useState<string | null>(null);
+  const [appliedLocation, setAppliedLocation] = React.useState<string | null>(null);
+  const [appliedJobType, setAppliedJobType] = React.useState<string | null>(null);
+  const [appliedSource, setAppliedSource] = React.useState<string | null>(null);
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -36,27 +43,50 @@ export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
 
   const jobTypes = ['Internship', 'Full-time', 'Part-time', 'Contract', 'Freelance'];
 
-  const handleChange = () => {
+  // Check if there are unapplied changes pending
+  const hasPendingChanges =
+    category !== appliedCategory ||
+    location !== appliedLocation ||
+    jobType !== appliedJobType ||
+    source !== appliedSource;
+
+  // Check if any filter is currently active
+  const hasActiveFilters =
+    appliedCategory || appliedLocation || appliedJobType || appliedSource;
+
+  const handleApply = () => {
+    setAppliedCategory(category);
+    setAppliedLocation(location);
+    setAppliedJobType(jobType);
+    setAppliedSource(source);
     onFilterChange(category, location, jobType, source);
   };
-
-  React.useEffect(() => {
-    handleChange();
-  }, [category, location, jobType, source]);
 
   const handleReset = () => {
     setCategory(null);
     setLocation(null);
     setJobType(null);
     setSource(null);
+    setAppliedCategory(null);
+    setAppliedLocation(null);
+    setAppliedJobType(null);
+    setAppliedSource(null);
+    onFilterChange(null, null, null, null);
   };
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+        {hasActiveFilters && (
+          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+            Active
+          </span>
+        )}
+      </div>
 
       {/* Category */}
-      <div className="mb-6">
+      <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Category
         </label>
@@ -75,7 +105,7 @@ export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
       </div>
 
       {/* Location */}
-      <div className="mb-6">
+      <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Location
         </label>
@@ -94,7 +124,7 @@ export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
       </div>
 
       {/* Job Type */}
-      <div className="mb-6">
+      <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Job Type
         </label>
@@ -131,10 +161,28 @@ export default function FilterPanel({ onFilterChange }: FilterPanelProps) {
         </select>
       </div>
 
+      {/* Apply Button */}
+      <button
+        onClick={handleApply}
+        disabled={!hasPendingChanges}
+        className={`w-full px-4 py-2 rounded-lg font-medium transition mb-2 ${
+          hasPendingChanges
+            ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+            : 'bg-blue-100 text-blue-300 cursor-not-allowed'
+        }`}
+      >
+        Apply Filters
+      </button>
+
       {/* Reset Button */}
       <button
         onClick={handleReset}
-        className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition font-medium"
+        disabled={!hasActiveFilters && !hasPendingChanges}
+        className={`w-full px-4 py-2 rounded-lg font-medium transition ${
+          hasActiveFilters || hasPendingChanges
+            ? 'bg-gray-200 text-gray-800 hover:bg-gray-300 cursor-pointer'
+            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+        }`}
       >
         Reset Filters
       </button>
