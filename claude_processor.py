@@ -113,7 +113,6 @@ No markdown fences. No explanation. Pure JSON array only."""
     def _call_ai(self, jobs: list[dict]) -> list[dict]:
         system, user = self._build_prompt(jobs)
 
-        # Primary backend
         dispatch = {
             "groq":       self._call_groq,
             "gemini":     self._call_gemini,
@@ -126,8 +125,10 @@ No markdown fences. No explanation. Pure JSON array only."""
 
         raw = fn(system, user)
 
-        # Fallback chain — try each backend in order if primary failed
-        if raw == "[]":
+        # Check if primary succeeded — triggers on empty OR unparsable response
+        parsed = self._parse(raw)
+
+        if not parsed:
             fallback_chain = [
                 ("groq",       self._call_groq),
                 ("openrouter", self._call_openrouter_fallback),
@@ -135,17 +136,18 @@ No markdown fences. No explanation. Pure JSON array only."""
             ]
             for name, fallback_fn in fallback_chain:
                 if name == self.backend:
-                    continue  # already tried
+                    continue
                 logger.warning(f"Primary backend failed — trying fallback: {name}…")
                 raw = fallback_fn(system, user)
-                if raw != "[]":
+                parsed = self._parse(raw)
+                if parsed:
                     logger.info(f"Fallback {name} succeeded.")
                     break
 
-        if raw == "[]":
+        if not parsed:
             logger.error("All backends failed for this chunk — skipping.")
 
-        return self._parse(raw)
+        return parsed
 
     # ── Groq ──────────────────────────────────────────────────────────────────
 
@@ -181,22 +183,22 @@ No markdown fences. No explanation. Pure JSON array only."""
                 self.groq_key_index = next_index
                 return self._call_groq(system, user, retry)
 
-            # All Groq keys exhausted
-            if retry >= 3:
-                logger.error("All Groq keys rate limited, max retries exceeded — returning [] for fallback")
+            # Only wait once then give up — let fallback chain handle it
+            if retry >= 1:
+                logger.warning("Groq rate limited after 1 retry — passing to fallback chain")
                 return "[]"
 
             self.groq_key_index = 0
-            wait = 30 * (retry + 1)  # shorter wait since we have fallbacks
+            wait = 30
             logger.warning(
                 f"All {len(self.groq_keys)} Groq keys rate limited — "
-                f"waiting {wait}s (retry {retry + 1}/3)…"
+                f"waiting {wait}s (retry {retry + 1}/1)…"
             )
             time.sleep(wait)
             return self._call_groq(system, user, retry + 1)
 
         if r.status_code == 413:
-            logger.error("Groq 413: request too large — returning [] for fallback")
+            logger.error("Groq 413: request too large — passing to fallback chain")
             return "[]"
 
         if r.status_code != 200:
