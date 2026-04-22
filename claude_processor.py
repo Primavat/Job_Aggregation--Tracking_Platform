@@ -6,6 +6,8 @@ Supported backends (set AI_BACKEND in .env):
   gemini     — aistudio.google.com    (free)
   openrouter — openrouter.ai          (free tier)
   claude     — console.anthropic.com  (paid)
+
+Fallback chain: Groq → OpenRouter → Gemini
 """
 
 import json
@@ -26,7 +28,7 @@ class ClaudeProcessor:
         self.client  = httpx.Client(timeout=90)
         self.backend = cfg.AI_BACKEND.lower()
 
-        # Support multiple Groq keys: AI_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3, etc.
+        # Support multiple Groq keys
         self.groq_keys = [k for k in [
             cfg.AI_API_KEY,
             getattr(cfg, "GROQ_API_KEY_2", None),
@@ -104,12 +106,14 @@ No markdown fences. No explanation. Pure JSON array only."""
         # Truncate descriptions to keep token count low
         for job in payload:
             if job.get("description"):
-                job["description"] = job["description"][:200]
+                job["description"] = job["description"][:100]
 
         return system, json.dumps(payload, ensure_ascii=False)
 
     def _call_ai(self, jobs: list[dict]) -> list[dict]:
         system, user = self._build_prompt(jobs)
+
+        # Primary backend
         dispatch = {
             "groq":       self._call_groq,
             "gemini":     self._call_gemini,
@@ -119,18 +123,31 @@ No markdown fences. No explanation. Pure JSON array only."""
         fn = dispatch.get(self.backend)
         if not fn:
             raise ValueError(f"Unknown AI_BACKEND: {self.backend}")
+
         raw = fn(system, user)
 
-        # If primary backend failed, fall back to Gemini
-        if raw == "[]" and self.backend != "gemini":
-            gemini_key = getattr(self.cfg, "GEMINI_API_KEY", None)
-            if gemini_key and "your-key-here" not in gemini_key:
-                logger.warning("Primary AI failed — falling back to Gemini…")
-                raw = self._call_gemini_with_key(system, user, gemini_key)
-            else:
-                logger.warning("Primary AI failed and no GEMINI_API_KEY set, cannot fall back.")
+        # Fallback chain — try each backend in order if primary failed
+        if raw == "[]":
+            fallback_chain = [
+                ("groq",       self._call_groq),
+                ("openrouter", self._call_openrouter_fallback),
+                ("gemini",     self._call_gemini_fallback),
+            ]
+            for name, fallback_fn in fallback_chain:
+                if name == self.backend:
+                    continue  # already tried
+                logger.warning(f"Primary backend failed — trying fallback: {name}…")
+                raw = fallback_fn(system, user)
+                if raw != "[]":
+                    logger.info(f"Fallback {name} succeeded.")
+                    break
+
+        if raw == "[]":
+            logger.error("All backends failed for this chunk — skipping.")
 
         return self._parse(raw)
+
+    # ── Groq ──────────────────────────────────────────────────────────────────
 
     def _call_groq(self, system: str, user: str, retry: int = 0) -> str:
         if not self.groq_keys:
@@ -155,7 +172,7 @@ No markdown fences. No explanation. Pure JSON array only."""
         if r.status_code == 429:
             next_index = self.groq_key_index + 1
 
-            # Try next key immediately before sleeping
+            # Try next Groq key immediately
             if next_index < len(self.groq_keys):
                 logger.warning(
                     f"Groq key {self.groq_key_index + 1} rate limited — "
@@ -164,22 +181,22 @@ No markdown fences. No explanation. Pure JSON array only."""
                 self.groq_key_index = next_index
                 return self._call_groq(system, user, retry)
 
-            # All keys exhausted — sleep and retry from first key
-            if retry >= 5:
-                logger.error("All Groq keys rate limited, max retries exceeded — skipping chunk")
+            # All Groq keys exhausted
+            if retry >= 3:
+                logger.error("All Groq keys rate limited, max retries exceeded — returning [] for fallback")
                 return "[]"
 
-            self.groq_key_index = 0  # reset to first key
-            wait = 60 * (retry + 1)
+            self.groq_key_index = 0
+            wait = 30 * (retry + 1)  # shorter wait since we have fallbacks
             logger.warning(
                 f"All {len(self.groq_keys)} Groq keys rate limited — "
-                f"waiting {wait}s (retry {retry + 1}/5)…"
+                f"waiting {wait}s (retry {retry + 1}/3)…"
             )
             time.sleep(wait)
             return self._call_groq(system, user, retry + 1)
 
         if r.status_code == 413:
-            logger.error(f"Groq error 413: request too large even after truncation — skipping chunk")
+            logger.error("Groq 413: request too large — returning [] for fallback")
             return "[]"
 
         if r.status_code != 200:
@@ -188,12 +205,57 @@ No markdown fences. No explanation. Pure JSON array only."""
 
         return r.json()["choices"][0]["message"]["content"]
 
+    # ── OpenRouter ────────────────────────────────────────────────────────────
+
+    def _call_openrouter(self, system: str, user: str) -> str:
+        """Primary OpenRouter call using AI_API_KEY."""
+        key = self.cfg.AI_API_KEY
+        return self._openrouter_request(system, user, key)
+
+    def _call_openrouter_fallback(self, system: str, user: str) -> str:
+        """Fallback OpenRouter call using dedicated OPENROUTER_API_KEY."""
+        key = getattr(self.cfg, "OPENROUTER_API_KEY", None)
+        if not key or "your-key-here" in key:
+            logger.warning("No OPENROUTER_API_KEY set, skipping OpenRouter fallback.")
+            return "[]"
+        return self._openrouter_request(system, user, key)
+
+    def _openrouter_request(self, system: str, user: str, key: str) -> str:
+        r = self.client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={
+                "model":      "meta-llama/llama-3.3-70b-instruct:free",
+                "messages":   [{"role": "system", "content": system},
+                               {"role": "user",   "content": user}],
+                "max_tokens": 2000,
+            },
+            headers={"Authorization": f"Bearer {key}",
+                     "Content-Type":  "application/json"},
+        )
+        if r.status_code != 200:
+            logger.error(f"OpenRouter error {r.status_code}: {r.text[:200]}")
+            return "[]"
+        return r.json()["choices"][0]["message"]["content"]
+
+    # ── Gemini ────────────────────────────────────────────────────────────────
+
     def _call_gemini(self, system: str, user: str) -> str:
-        """Used when AI_BACKEND=gemini is the primary backend."""
-        return self._call_gemini_with_key(system, user, self.cfg.AI_API_KEY)
+        """Primary Gemini call using AI_API_KEY."""
+        return self._gemini_request(system, user, self.cfg.AI_API_KEY)
+
+    def _call_gemini_fallback(self, system: str, user: str) -> str:
+        """Fallback Gemini call using dedicated GEMINI_API_KEY."""
+        key = getattr(self.cfg, "GEMINI_API_KEY", None)
+        if not key or "your-key-here" in key:
+            logger.warning("No GEMINI_API_KEY set, skipping Gemini fallback.")
+            return "[]"
+        return self._gemini_request(system, user, key)
 
     def _call_gemini_with_key(self, system: str, user: str, key: str) -> str:
-        """Used for both primary (AI_BACKEND=gemini) and fallback calls."""
+        """Kept for backwards compatibility."""
+        return self._gemini_request(system, user, key)
+
+    def _gemini_request(self, system: str, user: str, key: str) -> str:
         model = "gemini-2.0-flash"
         r = self.client.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
@@ -209,22 +271,7 @@ No markdown fences. No explanation. Pure JSON array only."""
             return "[]"
         return r.json()["candidates"][0]["content"]["parts"][0]["text"]
 
-    def _call_openrouter(self, system: str, user: str) -> str:
-        r = self.client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            json={
-                "model":      self.cfg.AI_MODEL or "meta-llama/llama-3.3-70b-instruct:free",
-                "messages":   [{"role": "system", "content": system},
-                               {"role": "user",   "content": user}],
-                "max_tokens": 2000,
-            },
-            headers={"Authorization": f"Bearer {self.cfg.AI_API_KEY}",
-                     "Content-Type":  "application/json"},
-        )
-        if r.status_code != 200:
-            logger.error(f"OpenRouter error {r.status_code}: {r.text[:200]}")
-            return "[]"
-        return r.json()["choices"][0]["message"]["content"]
+    # ── Claude ────────────────────────────────────────────────────────────────
 
     def _call_claude(self, system: str, user: str) -> str:
         r = self.client.post(
@@ -246,6 +293,8 @@ No markdown fences. No explanation. Pure JSON array only."""
             return "[]"
         r.raise_for_status()
         return "".join(b["text"] for b in r.json()["content"] if b.get("type") == "text")
+
+    # ── Parser ────────────────────────────────────────────────────────────────
 
     def _parse(self, raw: str) -> list[dict]:
         raw   = re.sub(r"```(?:json)?|```", "", raw).strip()
